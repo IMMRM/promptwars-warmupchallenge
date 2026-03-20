@@ -587,8 +587,8 @@ with tab_audio:
     )
 
 # ── Processing Logic ──────────────────────────────────────────────────
-result = None
-
+if "analysis_result" not in st.session_state:
+    st.session_state.analysis_result = None
 # Status placeholder for showing retry progress
 status_area = st.empty()
 
@@ -604,7 +604,7 @@ if text_submit and text_input.strip():
         full_text += f"\n\nAdditional context: {text_context.strip()}"
     with st.spinner("🔄 Analyzing with Gemini AI..."):
         try:
-            result = action_engine.process_text(full_text, status_callback=_status_callback)
+            st.session_state.analysis_result = action_engine.process_text(full_text, status_callback=_status_callback)
         except Exception as e:
             st.error(f"❌ Analysis failed: {e}")
     status_area.empty()
@@ -621,7 +621,7 @@ elif image_submit and uploaded_image:
     mime = mime_map.get(ext, "image/jpeg")
     with st.spinner("🔄 Analyzing image with Gemini AI..."):
         try:
-            result = action_engine.process_image(
+            st.session_state.analysis_result = action_engine.process_image(
                 image_bytes, mime, image_context, status_callback=_status_callback
             )
         except Exception as e:
@@ -641,7 +641,7 @@ elif audio_submit and uploaded_audio:
     mime = mime_map.get(ext, "audio/wav")
     with st.spinner("🔄 Analyzing audio with Gemini AI..."):
         try:
-            result = action_engine.process_audio(
+            st.session_state.analysis_result = action_engine.process_audio(
                 audio_bytes, mime, audio_context, status_callback=_status_callback
             )
         except Exception as e:
@@ -649,9 +649,9 @@ elif audio_submit and uploaded_audio:
     status_area.empty()
 
 # ── Render Results ────────────────────────────────────────────────────
-if result:
+if st.session_state.analysis_result:
     st.markdown("---")
-    render_results(result)
+    render_results(st.session_state.analysis_result)
 
     # Nearby services + map
     st.markdown("---")
@@ -659,7 +659,7 @@ if result:
     with st.spinner("📍 Finding nearby services..."):
         try:
             places = action_engine.enrich_with_nearby_services(
-                result, user_lat, user_lng, service_type
+                st.session_state.analysis_result, user_lat, user_lng, service_type
             )
             if places:
                 render_map(user_lat, user_lng, places)
@@ -681,7 +681,7 @@ if result:
             render_map(user_lat, user_lng, [])
 
 # ── Empty State ───────────────────────────────────────────────────────
-if not result:
+if not st.session_state.analysis_result:
     st.markdown("---")
     st.markdown(
         """

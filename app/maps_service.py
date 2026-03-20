@@ -49,8 +49,7 @@ def find_nearby(
     """
     api_key = get_maps_api_key()
     if not api_key:
-        logger.warning("Google Maps API key not configured — skipping nearby search.")
-        return []
+        raise MapsAPIError("Google Maps API key is missing from .env.")
 
     place_type = SERVICE_TYPE_MAP.get(service_type, "hospital")
     if place_type is None:

@@ -18,9 +18,11 @@ logger = logging.getLogger(__name__)
 # ── Model fallback chain ──────────────────────────────────────────────
 # If the primary model is rate-limited, try the next one in the list.
 MODEL_CHAIN = [
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-preview-02-05", 
     "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
 ]
 
 MAX_RETRIES = 3
@@ -178,11 +180,16 @@ def _generate_with_retry(
                     time.sleep(backoff)
                     backoff = min(backoff * 2, 60)  # exponential, cap at 60s
                 else:
-                    # Non-rate-limit error — don't retry, escalate immediately
-                    raise
+                    # Non-rate-limit error (e.g. 404 model not found)
+                    # Don't retry this model, skip immediately to the next one in the chain
+                    logger.warning("Model %s failed with non-rate-limit error: %s. Skipping to next model.", model_name, str(exc))
+                    if status_callback:
+                        status_callback(f"⚠️ {model_name} not available, switching models...")
+                    break  # Break out of the retry loop to try the next model
 
-        # Exhausted retries for this model, try the next one
-        logger.warning("All retries exhausted for %s, trying next model.", model_name)
+        else:
+            # Exhausted retries for this model without breaking
+            logger.warning("All retries exhausted for %s, trying next model.", model_name)
 
     # All models failed
     raise last_exc  # type: ignore[misc]

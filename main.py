@@ -45,11 +45,27 @@ with st.sidebar:
 
     st.markdown("### 📍 Your Location")
     st.caption("Used to find nearby emergency services on the map.")
+    @st.cache_data(ttl=3600)
+    def get_auto_location():
+        """Auto-detect rough location based on IP address."""
+        try:
+            import httpx
+            # Use ip-api or ipapi.co as a free, no-key IP geolocation service
+            resp = httpx.get("https://ipapi.co/json/", timeout=3.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                return float(data.get("latitude", 28.6139)), float(data.get("longitude", 77.2090))
+        except Exception:
+            pass
+        return 28.6139, 77.2090  # Default to New Delhi if offline/rate-limited
+
+    auto_lat, auto_lng = get_auto_location()
+
     col_lat, col_lng = st.columns(2)
     with col_lat:
-        user_lat = st.number_input("Latitude", value=28.6139, format="%.4f", key="lat")
+        user_lat = st.number_input("Latitude", value=auto_lat, format="%.4f", key="lat")
     with col_lng:
-        user_lng = st.number_input("Longitude", value=77.2090, format="%.4f", key="lng")
+        user_lng = st.number_input("Longitude", value=auto_lng, format="%.4f", key="lng")
 
     st.markdown("---")
 

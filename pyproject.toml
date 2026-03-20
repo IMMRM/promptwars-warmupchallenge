@@ -1,7 +1,15 @@
 [project]
 name = "google-promptwars"
 version = "0.1.0"
-description = "Add your description here"
+description = "LifeLine AI — Turn unstructured inputs into life-saving actions"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "streamlit>=1.45.0",
+    "google-genai>=1.12.1",
+    "python-dotenv>=1.1.0",
+    "httpx>=0.28.1",
+    "folium>=0.19.5",
+    "streamlit-folium>=0.25.0",
+    "pytest>=8.3.5",
+]

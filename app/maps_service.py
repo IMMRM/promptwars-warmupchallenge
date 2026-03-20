@@ -66,12 +66,15 @@ def find_nearby(
         resp.raise_for_status()
         data = resp.json()
     except httpx.HTTPError as exc:
+        error_msg = f"Network or HTTP error: {exc}"
         logger.error("Places API request failed: %s", exc)
-        return []
+        raise RuntimeError(error_msg)
 
     if data.get("status") not in ("OK", "ZERO_RESULTS"):
-        logger.error("Places API error: %s", data.get("status"))
-        return []
+        status = data.get("status")
+        error_msg = data.get("error_message", "Unknown error from Maps API")
+        logger.error("Places API error: %s - %s", status, error_msg)
+        raise ValueError(f"Google Maps API ({status}): {error_msg}")
 
     places: list[NearbyPlace] = []
     for result in data.get("results", [])[:max_results]:

@@ -3,6 +3,7 @@ LifeLine AI — Streamlit Application
 Turn messy, real-world inputs into structured, verified, life-saving actions.
 """
 
+import html
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
@@ -331,54 +332,62 @@ st.markdown(
 
 
 # ── Helper: render an action card ──────────────────────────────────────
-def render_action_card(action):
-    """Render a single action card with severity styling."""
-    sev = action.severity.lower()
-    icon = SEVERITY_ICONS.get(action.severity, "⚪")
+def render_action_card(action) -> None:
+    """Render a single action card with severity styling and XSS protection."""
+    sev = html.escape(action.severity.lower())
+    icon = html.escape(SEVERITY_ICONS.get(action.severity, "⚪"))
     time_badge = " ⏰ TIME-SENSITIVE" if action.time_sensitive else ""
+    title = html.escape(action.title)
+    description = html.escape(action.description)
+    category = html.escape(action.category)
 
     steps_html = ""
     if action.steps:
-        items = "".join(f"<li>{step}</li>" for step in action.steps)
+        items = "".join(f"<li>{html.escape(step)}</li>" for step in action.steps)
         steps_html = f'<ul class="card-steps">{items}</ul>'
 
     verification_html = ""
     if action.verification:
+        verification = html.escape(action.verification)
         verification_html = (
             f'<div style="margin-top:0.5rem; font-size:0.82rem; color:#888;">'
-            f"✅ <em>{action.verification}</em></div>"
+            f"✅ <em>{verification}</em></div>"
         )
 
-    html = f"""
+    action_html = f"""
     <div class="action-card {sev} animate-in">
         <div class="card-header">
-            <span class="severity-badge {sev}">{icon} {action.severity}{time_badge}</span>
-            <span style="color:#888;font-size:0.8rem;">📁 {action.category}</span>
+            <span class="severity-badge {sev}">{icon} {html.escape(action.severity)}{time_badge}</span>
+            <span style="color:#888;font-size:0.8rem;">📁 {category}</span>
         </div>
-        <div class="card-title">{action.title}</div>
-        <div class="card-desc">{action.description}</div>
+        <div class="card-title">{title}</div>
+        <div class="card-desc">{description}</div>
         {steps_html}
         {verification_html}
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    st.markdown(action_html, unsafe_allow_html=True)
 
 
 # ── Helper: render results ─────────────────────────────────────────────
-def render_results(result):
-    """Render the full analysis result."""
-    sev = result.severity.lower()
-    icon = SEVERITY_ICONS.get(result.severity, "⚪")
+def render_results(result) -> None:
+    """Render the full analysis result securely."""
+    sev = html.escape(result.severity.lower())
+    icon = html.escape(SEVERITY_ICONS.get(result.severity, "⚪"))
+    summary = html.escape(result.summary)
+    category = html.escape(result.category)
+    severity_label = html.escape(result.severity)
+    raw_input_type = html.escape(result.raw_input_type)
 
     # Summary box
     st.markdown(
         f"""
     <div class="summary-box animate-in">
-        <h3>{icon} {result.summary}</h3>
+        <h3>{icon} {summary}</h3>
         <p>
-            <span class="severity-badge {sev}">{result.severity}</span>
-            &nbsp; Category: <strong>{result.category}</strong>
-            &nbsp; | &nbsp; Input type: <strong>{result.raw_input_type}</strong>
+            <span class="severity-badge {sev}">{severity_label}</span>
+            &nbsp; Category: <strong>{category}</strong>
+            &nbsp; | &nbsp; Input type: <strong>{raw_input_type}</strong>
         </p>
     </div>
     """,
@@ -387,7 +396,7 @@ def render_results(result):
 
     # Key facts
     if result.key_facts:
-        facts_items = "".join(f"<li>{f}</li>" for f in result.key_facts)
+        facts_items = "".join(f"<li>{html.escape(f)}</li>" for f in result.key_facts)
         st.markdown(
             f"""
         <div class="key-facts animate-in">
@@ -405,11 +414,12 @@ def render_results(result):
 
     # Verification notes
     if result.verification_notes:
+        verification_notes = html.escape(result.verification_notes)
         st.markdown(
             f"""
         <div class="verification-box animate-in">
             <h4>🛡️ Verification & Sources</h4>
-            <p>{result.verification_notes}</p>
+            <p>{verification_notes}</p>
         </div>
         """,
             unsafe_allow_html=True,
@@ -447,9 +457,14 @@ def render_map(lat, lng, places):
     for place in places:
         color = type_colors.get(place.place_type, "gray")
         fa_icon = type_icons.get(place.place_type, "map-marker")
-        popup_text = f"<b>{place.name}</b><br>{place.address}"
+        
+        # Protect against potential XSS in place names or addresses
+        safe_name = html.escape(place.name)
+        safe_address = html.escape(place.address)
+        
+        popup_text = f"<b>{safe_name}</b><br>{safe_address}"
         if place.rating:
-            popup_text += f"<br>⭐ {place.rating}"
+            popup_text += f"<br>⭐ {html.escape(str(place.rating))}"
 
         folium.Marker(
             [place.lat, place.lng],

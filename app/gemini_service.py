@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 import logging
-from typing import Optional
+from typing import Optional, Callable
 
 from google import genai
 from google.genai import types
@@ -120,10 +120,10 @@ def _is_rate_limit_error(exc: Exception) -> bool:
 
 def _generate_with_retry(
     client: genai.Client,
-    contents,
+    contents: str | list,
     config: types.GenerateContentConfig,
-    status_callback=None,
-):
+    status_callback: Optional[Callable[[str], None]] = None,
+) -> types.GenerateContentResponse:
     """Call Gemini with automatic retry + model fallback on rate limits.
 
     Tries each model in MODEL_CHAIN. For each model, retries up to MAX_RETRIES
@@ -144,11 +144,11 @@ def _generate_with_retry(
     last_exc = None
 
     for model_name in MODEL_CHAIN:
-        backoff = INITIAL_BACKOFF_S
+        backoff: int = INITIAL_BACKOFF_S
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                if status_callback and (model_name != MODEL_CHAIN[0] or attempt > 1):
+                if status_callback is not None and (model_name != MODEL_CHAIN[0] or attempt > 1):
                     status_callback(
                         f"Trying {model_name} (attempt {attempt}/{MAX_RETRIES})..."
                     )
@@ -172,18 +172,18 @@ def _generate_with_retry(
                         MAX_RETRIES,
                         backoff,
                     )
-                    if status_callback:
+                    if status_callback is not None:
                         status_callback(
                             f"⏳ Rate-limited on {model_name}. "
                             f"Retrying in {backoff}s..."
                         )
                     time.sleep(backoff)
-                    backoff = min(backoff * 2, 60)  # exponential, cap at 60s
+                    backoff = min(int(backoff) * 2, 60)  # exponential, cap at 60s
                 else:
                     # Non-rate-limit error (e.g. 404 model not found)
                     # Don't retry this model, skip immediately to the next one in the chain
                     logger.warning("Model %s failed with non-rate-limit error: %s. Skipping to next model.", model_name, str(exc))
-                    if status_callback:
+                    if status_callback is not None:
                         status_callback(f"⚠️ {model_name} not available, switching models...")
                     break  # Break out of the retry loop to try the next model
 

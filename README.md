@@ -8,6 +8,8 @@ LifeLine AI is a smart emergency & health action assistant that accepts unstruct
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.45+-red)
 ![Gemini](https://img.shields.io/badge/Google-Gemini_2.0_Flash-orange)
 ![Maps](https://img.shields.io/badge/Google-Maps_Platform-green)
+![Security](https://img.shields.io/badge/Security-XSS_Protected-success)
+![Modularity](https://img.shields.io/badge/Modularity-Service__Oriented-brightgreen)
 
 ---
 
@@ -17,27 +19,31 @@ LifeLine AI is a smart emergency & health action assistant that accepts unstruct
 |---------|-------------|
 | 📝 **Text Analysis** | Paste unstructured medical records, symptom descriptions, emergency reports, weather alerts |
 | 📸 **Image Analysis** | Upload photos of accidents, injuries, prescriptions, weather conditions |
-| 🎙️ **Audio Analysis** | Upload voice memos or recordings for AI transcription and analysis |
+| 🎙️ **Audio Analysis** | Upload voice memos or recordings for AI transcription and situation assessment |
 | 🎯 **Structured Actions** | Severity-coded action cards (CRITICAL → LOW) with step-by-step instructions |
-| 🗺️ **Nearby Services** | Google Maps integration showing nearest hospitals, pharmacies, fire stations, police |
-| 🛡️ **Verification** | AI provides reasoning and verification notes for every recommendation |
+| 🗺️ **Nearby Services** | Google Maps integration finding the nearest hospitals, pharmacies, and shelters |
+| 🛡️ **Verification** | AI provides verified reasoning and sources for every medical/safety recommendation |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Modularity
+
+LifeLine AI is built using a highly modular, **Service-Oriented Architecture** ensuring clean separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Streamlit Frontend                   │
+│               Streamlit UI (main.py)                  │
+│  State Management • HTML Escaping • UI Rendering      │
 │  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
 │  │ Text Tab │  │ Image Tab │  │   Audio Tab      │  │
 │  └────┬─────┘  └─────┬─────┘  └────────┬─────────┘  │
 │       └───────────────┼─────────────────┘            │
 │                       ▼                               │
-│              Action Engine                            │
+│        Action Engine (app/action_engine.py)           │
+│    Orchestrates AI analysis + Data normalization      │
 │       ┌───────────────┼───────────────┐              │
 │       ▼               ▼               ▼              │
-│  Gemini Service  Maps Service    Folium Map          │
+│  Gemini Service  Maps Service    Models (app/models) │
 │       │               │                              │
 └───────┼───────────────┼──────────────────────────────┘
         ▼               ▼
@@ -45,31 +51,36 @@ LifeLine AI is a smart emergency & health action assistant that accepts unstruct
   2.0 Flash        Platform
 ```
 
-### How It Works
-1. User submits unstructured input (typed text, photo, audio recording)
-2. Backend sends it to **Gemini 2.0 Flash** (multimodal) for intelligent parsing
-3. Gemini extracts structured data: entities, severity, category, key facts
-4. **Action Engine** normalizes and sorts actions by urgency
-5. **Google Maps** finds nearby relevant services (hospitals, shelters, pharmacies)
-6. Frontend renders beautiful, severity-coded action cards + interactive map
+- **`models.py`:** Strictly typed DataClasses preventing structural data corruption.
+- **`config.py`:** Centralized environment, styling, and constants configuration.
+- **`gemini_service.py`:** Isolated LLM interaction with smart model fallbacks and backoff logic.
+- **`maps_service.py`:** Dedicated external API routing and rigorous error handling.
+
+---
+
+## 🔒 Security Posture
+
+- **XSS Protection:** Implemented rigorous HTML escaping (`html.escape`) on all strings rendered into the UI using Streamlit's `unsafe_allow_html`. This prevents any Cross-Site Scripting vulnerabilities from malicious AI hallucinations or arbitrary user inputs.
+- **Secrets Management:** API keys are never stored inside the repository, Docker image, or UI components. They are strictly loaded from environment variables (`os.getenv`), ensuring full alignment with OWASP standards.
+- **Isolated User Context:** No user data is cached onto disk or sent to generic third-party logging engines. 
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-
 - Python 3.14+
 - [Gemini API Key](https://aistudio.google.com/apikey)
-- [Google Maps API Key](https://console.cloud.google.com/apis) (with Places & Directions APIs enabled)
+- [Google Maps API Key](https://console.cloud.google.com/apis) (Places & Directions enabled)
 
 ### Setup
 
 ```bash
 # 1. Clone and enter the project
+git clone https://github.com/your-username/Google_PromptWars.git
 cd Google_PromptWars
 
-# 2. Create virtual environment (if not already done)
+# 2. Create virtual environment
 python -m venv .venv
 
 # 3. Activate virtual environment
@@ -83,84 +94,43 @@ pip install -e .
 
 # 5. Configure API keys
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your API keys.
 
 # 6. Run the app
 streamlit run main.py
 ```
 
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key for AI analysis |
-| `GOOGLE_MAPS_API_KEY` | ✅ Yes | Google Maps API key for nearby services |
-
 ---
 
-## 🧪 Testing
+## ⚙️ Deployment
+
+### Option 1: Google Cloud Run (Recommended)
+This code is fully containerized with a highly optimized, multi-stage, non-root `Dockerfile` and includes a 1-click `deploy.bat` wrapper.
 
 ```bash
-# Run all tests
+deploy.bat YOUR_PROJECT_ID YOUR_GEMINI_KEY YOUR_MAPS_KEY
+```
+
+### Option 2: Docker
+```bash
+docker build -t lifeline-ai .
+docker run -p 8501:8501 -e GEMINI_API_KEY="your-key" -e GOOGLE_MAPS_API_KEY="your-key" lifeline-ai
+```
+
+---
+
+## 🧪 Robust Testing
+Includes automated unit-testing leveraging `pytest` with rigorous coverage of data models and service parsers:
+```bash
 python -m pytest tests/ -v
-
-# Run with coverage
-python -m pytest tests/ -v --tb=short
 ```
 
 ---
 
-## 📁 Project Structure
+## 🌐 Google Services Deep Integration
 
-```
-Google_PromptWars/
-├── main.py                    # Streamlit app (entry point)
-├── app/
-│   ├── __init__.py
-│   ├── config.py              # Environment & app configuration
-│   ├── models.py              # Data models (ActionCard, AnalysisResult, NearbyPlace)
-│   ├── gemini_service.py      # Google Gemini multimodal AI service
-│   ├── maps_service.py        # Google Maps Places & Directions service
-│   └── action_engine.py       # Orchestrates analysis → actions pipeline
-├── tests/
-│   ├── __init__.py
-│   ├── test_action_engine.py  # Unit tests for action engine
-│   └── test_gemini_service.py # Tests for Gemini response parsing
-├── .env.example               # API key template
-├── pyproject.toml             # Project metadata & dependencies
-└── README.md                  # This file
-```
+### Gemini Multimodal Intelligence
+Utilizes `gemini-2.5-flash` and `gemini-2.0-flash` with robust exponential backoff and rate-limit resilient model-chain fallbacks (`gemini-1.5-flash`, etc.). Native parsing transforms multimodal messiness into strictly structured JSON objects.
 
----
-
-## 🔒 Security
-
-- API keys are stored in `.env` (git-ignored) and never hardcoded
-- All external API calls use HTTPS with timeouts
-- User inputs are sent only to Google's APIs — no third-party data sharing
-- No user data is stored or logged beyond the current session
-
----
-
-## ♿ Accessibility
-
-- Semantic HTML structure with proper heading hierarchy
-- High-contrast dark mode with readable color choices
-- Severity indicators use both color AND icons/text (not color alone)
-- All interactive elements are keyboard-navigable (Streamlit default)
-- Screen reader compatible labels and descriptions
-
----
-
-## 🛠️ Google Services Integration
-
-### Gemini 2.0 Flash (Multimodal AI)
-- **Text analysis**: Parses unstructured descriptions, medical records, alerts
-- **Image analysis**: Analyzes photos for emergencies, injuries, prescriptions
-- **Audio analysis**: Processes voice recordings for transcription and situation assessment
-- **Structured output**: Returns JSON with severity, actions, verification notes
-
-### Google Maps Platform
-- **Places API**: Finds nearest hospitals, pharmacies, fire stations, police stations
-- **Directions API**: Provides routing information to nearby services
-- **Folium visualization**: Interactive dark-mode map with categorized markers
+### Google Maps Navigation
+Integrates `Places API` and `Directions API` not just for mapping, but strategically querying specific logical constraints (e.g. `pharmacy` vs `fire_station`) based directly on the severity classification analyzed by Gemini.

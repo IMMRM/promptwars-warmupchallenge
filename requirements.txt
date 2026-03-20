@@ -1,0 +1,6 @@
+streamlit>=1.45.0
+google-genai>=1.12.1
+python-dotenv>=1.1.0
+httpx>=0.28.1
+folium>=0.19.5
+streamlit-folium>=0.25.0

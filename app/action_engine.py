@@ -96,4 +96,16 @@ def enrich_with_nearby_services(
     Returns:
         List of nearby places.
     """
-    return maps_service.find_nearby(lat, lng, service_type)
+    places = maps_service.find_nearby(lat, lng, service_type)
+    if places:
+        # ── Deep Google Maps Integration ──
+        # Get live routing ETA to the absolutely closest service using Directions API.
+        closest = places[0]
+        try:
+            route = maps_service.get_directions(lat, lng, closest.lat, closest.lng)
+            if route.get("distance_text") and route.get("duration_text"):
+                closest.distance_text = route["distance_text"]
+                closest.duration_text = route["duration_text"]
+        except Exception as e:
+            logger.warning("Could not fetch directions to nearest service: %s", e)
+    return places

@@ -124,34 +124,20 @@ def _generate_with_retry(
     config: types.GenerateContentConfig,
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> types.GenerateContentResponse:
-    """Call Gemini with automatic retry + model fallback on rate limits.
+    """Call Gemini with fast model-fallback and global retry caps.
 
-    Tries each model in MODEL_CHAIN. For each model, retries up to MAX_RETRIES
-    times with exponential backoff if a 429 error is received.
-
-    Args:
-        client: The Gemini client.
-        contents: The content to send (text string, or list with Parts).
-        config: GenerateContentConfig (system prompt, temperature, etc.).
-        status_callback: Optional callable(msg: str) for progress updates.
-
-    Returns:
-        The GenerateContentResponse from the first successful call.
-
-    Raises:
-        The last exception encountered if all models and retries fail.
+    Prioritizes trying the next available model immediately if a rate-limit
+    is hit to preserve user experience. Only sleeps and retries if ALL 
+    models are exhausted.
     """
     last_exc = None
+    backoff: float = 2.0
 
-    for model_name in MODEL_CHAIN:
-        backoff: int = INITIAL_BACKOFF_S
-
-        for attempt in range(1, MAX_RETRIES + 1):
+    for attempt in range(1, MAX_RETRIES + 1):
+        for model_name in MODEL_CHAIN:
             try:
-                if status_callback is not None and (model_name != MODEL_CHAIN[0] or attempt > 1):
-                    status_callback(
-                        f"Trying {model_name} (attempt {attempt}/{MAX_RETRIES})..."
-                    )
+                if status_callback is not None:
+                    status_callback(f"Trying {model_name}...")  # type: ignore
 
                 response = client.models.generate_content(
                     model=model_name,
@@ -159,39 +145,29 @@ def _generate_with_retry(
                     config=config,
                 )
                 logger.info("Success with model=%s on attempt %d", model_name, attempt)
+                if status_callback is not None:
+                    status_callback("✅ Analysis complete!")  # type: ignore
                 return response
 
             except Exception as exc:
                 last_exc = exc
                 if _is_rate_limit_error(exc):
-                    logger.warning(
-                        "Rate-limited on %s (attempt %d/%d). "
-                        "Retrying in %ds...",
-                        model_name,
-                        attempt,
-                        MAX_RETRIES,
-                        backoff,
-                    )
+                    logger.warning("Rate-limited on %s. Instantly trying next model.", model_name)
                     if status_callback is not None:
-                        status_callback(
-                            f"⏳ Rate-limited on {model_name}. "
-                            f"Retrying in {backoff}s..."
-                        )
-                    time.sleep(backoff)
-                    backoff = min(int(backoff) * 2, 60)  # exponential, cap at 60s
+                        status_callback(f"⏳ {model_name} busy, switching...")  # type: ignore
+                    continue # immediately try next model instead of sleeping
                 else:
-                    # Non-rate-limit error (e.g. 404 model not found)
-                    # Don't retry this model, skip immediately to the next one in the chain
-                    logger.warning("Model %s failed with non-rate-limit error: %s. Skipping to next model.", model_name, str(exc))
-                    if status_callback is not None:
-                        status_callback(f"⚠️ {model_name} not available, switching models...")
-                    break  # Break out of the retry loop to try the next model
+                    logger.warning("Model %s failed with non-rate-limit error: %s", model_name, str(exc))
+                    continue # immediately try next model
 
-        else:
-            # Exhausted retries for this model without breaking
-            logger.warning("All retries exhausted for %s, trying next model.", model_name)
+        # If we reach here, ALL models failed for this attempt. Now we sleep.
+        if attempt < MAX_RETRIES:
+            logger.warning("All models exhausted on attempt %d. Sleeping %ss...", attempt, backoff)
+            if status_callback is not None:
+                status_callback(f"⚠️ High load. Waiting {backoff}s before retry...")  # type: ignore
+            time.sleep(backoff)
+            backoff *= 2.0
 
-    # All models failed
     raise last_exc  # type: ignore[misc]
 
 

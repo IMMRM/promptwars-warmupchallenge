@@ -6,9 +6,11 @@ import re
 import logging
 
 import httpx
+import streamlit as st
 
 from app.config import get_maps_api_key
 from app.models import NearbyPlace
+from app.exceptions import MapsAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +70,13 @@ def find_nearby(
     except httpx.HTTPError as exc:
         error_msg = f"Network or HTTP error: {exc}"
         logger.error("Places API request failed: %s", exc)
-        raise RuntimeError(error_msg)
+        raise MapsAPIError(error_msg)
 
     if data.get("status") not in ("OK", "ZERO_RESULTS"):
         status = data.get("status")
         error_msg = data.get("error_message", "Unknown error from Maps API")
         logger.error("Places API error: %s - %s", status, error_msg)
-        raise ValueError(f"Google Maps API ({status}): {error_msg}")
+        raise MapsAPIError(f"Google Maps API ({status}): {error_msg}")
 
     places: list[NearbyPlace] = []
     for result in data.get("results", [])[:max_results]:
@@ -93,6 +95,7 @@ def find_nearby(
     return places
 
 
+@st.cache_data(ttl=900, show_spinner=False)
 def get_directions(
     origin_lat: float,
     origin_lng: float,
